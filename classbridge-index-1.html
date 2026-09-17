@@ -1,0 +1,1041 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>O'juwon's ClassBridge</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Zilla+Slab:wght@500;600&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+<style>
+  :root{
+    --ink:#20263B;
+    --paper:#F6F4EE;
+    --card:#FFFFFF;
+    --line:rgba(32,38,59,0.13);
+    --muted:#5C6478;
+    --admin:#3B4A8C;
+    --teacher:#3E7C59;
+    --parent:#C97B3D;
+  }
+  @media (prefers-color-scheme: dark){
+    :root:not([data-theme="light"]){
+      --ink:#ECE9E1; --paper:#171A26; --card:#20243A; --line:rgba(236,233,225,0.14); --muted:#A6ACC4;
+    }
+  }
+  :root[data-theme="dark"]{
+    --ink:#ECE9E1; --paper:#171A26; --card:#20243A; --line:rgba(236,233,225,0.14); --muted:#A6ACC4;
+  }
+  *{box-sizing:border-box; margin:0; padding:0;}
+  body{background:var(--paper); color:var(--ink); font-family:'Inter', sans-serif; line-height:1.5;}
+  h1,h2,h3{font-family:'Zilla Slab', serif; font-weight:600; line-height:1.15;}
+  .wrap{max-width:720px; margin:0 auto; padding:0 20px;}
+  button, input, textarea, select{font-family:inherit; font-size:inherit;}
+  .hidden{display:none !important;}
+
+  /* ---- Role gate ---- */
+  #schoolGate{min-height:100vh; display:flex; align-items:center; padding:40px 0;}
+  .school-toggle{display:flex; gap:8px; margin-bottom:20px;}
+  .school-toggle button{flex:1; padding:10px; border-radius:6px; border:1px solid var(--line); background:var(--card); color:var(--ink); cursor:pointer; font-weight:500;}
+  .school-toggle button.active{background:var(--ink); color:var(--paper);}
+  .school-code-display{font-family:monospace; font-size:1.6rem; letter-spacing:0.15em; text-align:center; padding:18px; background:var(--card); border:1px dashed var(--line); border-radius:8px; margin:14px 0;}
+  #roleGate{min-height:100vh; display:flex; align-items:center; padding:40px 0;}
+  .gate-title{font-size:2rem; margin-bottom:8px;}
+  .gate-sub{color:var(--muted); margin-bottom:32px; max-width:40ch;}
+  .role-cards{display:flex; flex-direction:column; gap:12px; margin-bottom:24px;}
+  .role-card{
+    display:flex; align-items:center; gap:14px; padding:16px 18px;
+    border:1px solid var(--line); border-radius:8px; background:var(--card);
+    cursor:pointer; text-align:left; color:var(--ink);
+  }
+  .role-card.selected{border-color:var(--dot); box-shadow:0 0 0 2px var(--dot) inset;}
+  .role-dot{width:12px; height:12px; border-radius:50%; flex-shrink:0;}
+  .role-card .rname{font-weight:600;}
+  .role-card .rdesc{font-size:0.85rem; color:var(--muted); margin-top:2px;}
+  #nameField{margin-top:8px;}
+  #nameField label{font-size:0.9rem; color:var(--muted); display:block; margin-bottom:6px;}
+  #nameInput{width:100%; padding:12px 14px; border:1px solid var(--line); border-radius:6px; background:var(--card); color:var(--ink);}
+  #continueBtn{
+    margin-top:18px; width:100%; padding:14px; border:none; border-radius:6px;
+    background:var(--ink); color:var(--paper); font-weight:600; cursor:pointer;
+  }
+  #continueBtn:disabled{opacity:0.4;}
+
+  /* ---- Main app ---- */
+  header{border-bottom:1px solid var(--line); padding:16px 0;}
+  .header-row{display:flex; justify-content:space-between; align-items:center;}
+  .app-name{font-family:'Zilla Slab', serif; font-size:1.2rem; font-weight:600;}
+  .who{font-size:0.82rem; color:var(--muted);}
+  .who b{color:var(--ink);}
+  .switch-btn{background:none; border:none; color:var(--muted); font-size:0.82rem; text-decoration:underline; cursor:pointer;}
+
+  main{padding:24px 0 60px;}
+  .section-title{font-size:1.4rem; margin-bottom:4px;}
+  .section-sub{color:var(--muted); font-size:0.88rem; margin-bottom:18px;}
+
+  .subtabs{display:flex; gap:6px; margin-bottom:20px; border-bottom:1px solid var(--line);}
+  .subtab{padding:9px 4px; margin-right:16px; background:none; border:none; border-bottom:2px solid transparent; color:var(--muted); font-weight:500; cursor:pointer;}
+  .subtab.active{color:var(--ink); border-bottom-color:currentColor;}
+
+  .card{background:var(--card); border:1px solid var(--line); border-radius:8px; padding:16px 18px; margin-bottom:12px;}
+  .list-row{display:flex; justify-content:space-between; align-items:center; gap:10px;}
+  .list-row .main{font-weight:600;}
+  .list-row .sub{font-size:0.82rem; color:var(--muted); margin-top:2px;}
+  .list-row button{background:var(--ink); color:var(--paper); border:none; padding:8px 14px; border-radius:5px; font-size:0.82rem; cursor:pointer;}
+
+  form.inline{display:flex; flex-direction:column; gap:10px; margin-top:6px;}
+  form.inline input, form.inline select, form.inline textarea{
+    padding:11px 12px; border:1px solid var(--line); border-radius:6px; background:var(--paper); color:var(--ink);
+  }
+  form.inline button{padding:12px; border:none; border-radius:6px; background:var(--ink); color:var(--paper); font-weight:600; cursor:pointer;}
+
+  .empty-state{color:var(--muted); font-size:0.9rem; padding:26px 0; text-align:center;}
+
+  /* Student detail */
+  .back-link{background:none; border:none; color:var(--muted); font-size:0.85rem; cursor:pointer; margin-bottom:14px; padding:0;}
+  .student-head{display:flex; align-items:baseline; justify-content:space-between; margin-bottom:18px; flex-wrap:wrap; gap:6px;}
+  .student-head h2{font-size:1.5rem;}
+  .student-head .meta{font-size:0.85rem; color:var(--muted);}
+
+  .subject-row{display:grid; grid-template-columns:1fr 90px auto; gap:8px; align-items:center; margin-bottom:8px;}
+  .subject-row input{padding:9px 10px; border:1px solid var(--line); border-radius:5px; background:var(--paper); color:var(--ink);}
+  .subject-row button{background:none; border:none; color:var(--muted); font-size:1.1rem; cursor:pointer;}
+  .add-subject-btn{background:none; border:1px dashed var(--line); color:var(--muted); padding:9px; border-radius:5px; cursor:pointer; font-size:0.85rem; margin-bottom:14px;}
+
+  .attend-row{display:flex; gap:14px; margin-bottom:14px;}
+  .attend-field{flex:1;}
+  .attend-field label{font-size:0.8rem; color:var(--muted); display:block; margin-bottom:5px;}
+  .attend-field input{width:100%; padding:10px; border:1px solid var(--line); border-radius:5px; background:var(--paper); color:var(--ink);}
+
+  .save-note{font-size:0.82rem; color:var(--muted); margin-top:8px;}
+
+  .msg-thread{display:flex; flex-direction:column; gap:10px; margin-bottom:16px; max-height:360px; overflow-y:auto;}
+  .msg{max-width:82%; padding:10px 13px; border-radius:10px; font-size:0.92rem;}
+  .msg .who-label{font-size:0.72rem; color:var(--muted); margin-bottom:3px;}
+  .msg.me{align-self:flex-end; background:var(--ink); color:var(--paper); border-bottom-right-radius:2px;}
+  .msg.them{align-self:flex-start; background:var(--card); border:1px solid var(--line); border-bottom-left-radius:2px;}
+  .msg-input-row{display:flex; gap:8px;}
+  .msg-input-row input{flex:1; padding:11px 13px; border:1px solid var(--line); border-radius:20px; background:var(--card); color:var(--ink);}
+  .msg-input-row button{padding:0 18px; border:none; border-radius:20px; background:var(--ink); color:var(--paper); font-weight:600; cursor:pointer;}
+
+  .report-view dl{display:grid; grid-template-columns:1fr auto; gap:6px 12px; margin-bottom:14px;}
+  .report-view dt{color:var(--muted); font-size:0.9rem;}
+  .report-view dd{font-weight:600; text-align:right;}
+  .comment-box{background:var(--paper); border:1px solid var(--line); border-radius:6px; padding:12px 14px; font-size:0.92rem; margin-top:8px;}
+
+  .sync-note{font-size:0.78rem; color:var(--muted); text-align:center; padding:10px 0 0;}
+</style>
+</head>
+<body>
+
+<!-- ================= SCHOOL GATE ================= -->
+<div id="schoolGate" class="wrap">
+  <div style="width:100%;">
+    <div class="gate-title">ClassBridge</div>
+    <div class="gate-sub">by O'juwon &mdash; a shared space for schools to run communication and reports between staff and parents.</div>
+
+    <div class="school-toggle">
+      <button id="tabNewSchool" class="active">Set up a new school</button>
+      <button id="tabJoinSchool">I have a school code</button>
+    </div>
+
+    <div id="newSchoolPane">
+      <label style="font-size:0.9rem; color:var(--muted); display:block; margin-bottom:6px;">School name</label>
+      <input id="newSchoolName" type="text" placeholder="e.g. Bright Future Academy" style="width:100%; padding:12px 14px; border:1px solid var(--line); border-radius:6px; background:var(--card); color:var(--ink); margin-bottom:14px;">
+      <button id="createSchoolBtn" style="width:100%; padding:14px; border:none; border-radius:6px; background:var(--ink); color:var(--paper); font-weight:600; cursor:pointer;">Create school</button>
+      <div class="save-note" id="createSchoolNote" style="margin-top:8px;"></div>
+    </div>
+
+    <div id="joinSchoolPane" class="hidden">
+      <label style="font-size:0.9rem; color:var(--muted); display:block; margin-bottom:6px;">School code</label>
+      <input id="joinSchoolCode" type="text" placeholder="e.g. A3F9K2" style="width:100%; padding:12px 14px; border:1px solid var(--line); border-radius:6px; background:var(--card); color:var(--ink); text-transform:uppercase; margin-bottom:14px;">
+      <button id="joinSchoolBtn" style="width:100%; padding:14px; border:none; border-radius:6px; background:var(--ink); color:var(--paper); font-weight:600; cursor:pointer;">Join school</button>
+      <div class="save-note" id="joinSchoolNote" style="margin-top:8px;"></div>
+    </div>
+  </div>
+</div>
+
+<!-- ================= ROLE GATE ================= -->
+<div id="roleGate" class="wrap hidden">
+  <div style="width:100%;">
+    <div class="gate-title">ClassBridge</div><div style="font-size:0.85rem; color:var(--muted); margin-top:-6px; margin-bottom:6px;">by O'juwon</div>
+    <div class="gate-sub">A shared space for admins, teachers, and parents to keep every student's progress and messages in one place.</div>
+    <div id="schoolInfoBox" style="font-size:0.85rem; color:var(--muted); margin-bottom:20px;"></div>
+
+    <div class="role-cards" id="roleCards">
+      <button class="role-card" data-role="admin" style="--dot:var(--admin);">
+        <div class="role-dot" style="background:var(--admin);"></div>
+        <div><div class="rname">Admin</div><div class="rdesc">Set up classes and add students</div></div>
+      </button>
+      <button class="role-card" data-role="teacher" style="--dot:var(--teacher);">
+        <div class="role-dot" style="background:var(--teacher);"></div>
+        <div><div class="rname">Teacher</div><div class="rdesc">Send reports and message parents</div></div>
+      </button>
+      <button class="role-card" data-role="parent" style="--dot:var(--parent);">
+        <div class="role-dot" style="background:var(--parent);"></div>
+        <div><div class="rname">Parent</div><div class="rdesc">View your child's report and message their teacher</div></div>
+      </button>
+    </div>
+
+    <div id="nameField">
+      <label id="nameLabel" for="nameInput">Your name</label>
+      <input id="nameInput" type="text" placeholder="Enter your name">
+    </div>
+    <button id="continueBtn" disabled>Continue</button>
+    <div class="sync-note" id="gateSyncNote"></div>
+
+    <div id="requestFormArea" class="hidden" style="margin-top:18px; padding-top:18px; border-top:1px solid var(--line);">
+      <div style="font-weight:600; margin-bottom:4px;">You're not set up yet</div>
+      <div class="sub" style="color:var(--muted); font-size:0.85rem; margin-bottom:14px;" id="requestFormExplain"></div>
+      <div id="teacherRequestFields">
+        <label style="font-size:0.85rem; color:var(--muted); display:block; margin-bottom:6px;">Which class do you teach?</label>
+        <input id="reqClassName" type="text" placeholder="e.g. JSS2" style="width:100%; padding:11px 12px; border:1px solid var(--line); border-radius:6px; background:var(--card); color:var(--ink); margin-bottom:12px;">
+      </div>
+      <div id="parentRequestFields" class="hidden">
+        <label style="font-size:0.85rem; color:var(--muted); display:block; margin-bottom:6px;">Child's full name</label>
+        <input id="reqStudentName" type="text" placeholder="e.g. Amaka Johnson" style="width:100%; padding:11px 12px; border:1px solid var(--line); border-radius:6px; background:var(--card); color:var(--ink); margin-bottom:12px;">
+      </div>
+      <label style="font-size:0.85rem; color:var(--muted); display:block; margin-bottom:6px;">Phone number</label>
+      <input id="reqPhone" type="text" placeholder="For the admin to reach you" style="width:100%; padding:11px 12px; border:1px solid var(--line); border-radius:6px; background:var(--card); color:var(--ink); margin-bottom:14px;">
+      <button id="sendRequestBtn" style="width:100%; padding:13px; border:none; border-radius:6px; background:var(--ink); color:var(--paper); font-weight:600; cursor:pointer;">Send request</button>
+      <div class="save-note" id="requestSentNote" style="margin-top:8px;"></div>
+    </div>
+
+    <div id="pendingMsg" class="hidden" style="margin-top:18px; padding:16px; background:var(--card); border:1px solid var(--line); border-radius:8px; font-size:0.9rem; color:var(--muted);">
+      Your request has been sent. You'll be able to sign in once the school admin approves it.
+    </div>
+  </div>
+</div>
+
+<!-- ================= MAIN APP ================= -->
+<div id="appMain" class="hidden">
+  <header>
+    <div class="wrap header-row">
+      <div class="app-name">ClassBridge <span style="font-weight:400; opacity:0.6;">by O'juwon</span></div>
+      <div style="text-align:right;">
+        <div class="who"><b id="whoName"></b> &middot; <span id="whoRole"></span></div>
+        <button class="switch-btn" id="switchRoleBtn">Switch role</button>
+      </div>
+    </div>
+  </header>
+
+  <main class="wrap">
+
+    <!-- ---- ADMIN VIEW ---- -->
+    <div id="adminView" class="hidden">
+      <div class="subtabs">
+        <button class="subtab active" data-sub="classes">Classes</button>
+        <button class="subtab" data-sub="students">Students</button>
+        <button class="subtab" data-sub="requests">Requests <span id="requestBadge"></span></button>
+        <button class="subtab" data-sub="announcements">Announcements</button>
+      </div>
+
+      <div id="adminClasses">
+        <div class="section-title">Classes</div>
+        <div class="section-sub">Create a class and assign the teacher who runs it.</div>
+        <div id="classList"></div>
+        <div class="card">
+          <div style="font-weight:600; margin-bottom:6px;">Add a class</div>
+          <form class="inline" id="classForm">
+            <input type="text" id="classNameInput" placeholder="Class name (e.g. Primary 5)" required>
+            <input type="text" id="classTeacherInput" placeholder="Teacher's name (must match what they log in with)" required>
+            <button type="submit">Add class</button>
+          </form>
+        </div>
+      </div>
+
+      <div id="adminStudents" class="hidden">
+        <div class="section-title">Students</div>
+        <div class="section-sub">Add a student and link them to a class and parent.</div>
+        <div id="studentList"></div>
+        <div class="card">
+          <div style="font-weight:600; margin-bottom:6px;">Add a student</div>
+          <form class="inline" id="studentForm">
+            <input type="text" id="studentNameInput" placeholder="Student's name" required>
+            <select id="studentClassInput" required></select>
+            <input type="text" id="studentParentInput" placeholder="Parent's name (must match what they log in with)" required>
+            <button type="submit">Add student</button>
+          </form>
+        </div>
+      </div>
+
+      <div id="adminRequests" class="hidden">
+        <div class="section-title">Sign-up requests</div>
+        <div class="section-sub">Approve a teacher or parent to give them access.</div>
+        <div id="requestList"></div>
+      </div>
+
+      <div id="adminAnnouncements" class="hidden">
+        <div class="section-title">Announcements</div>
+        <div class="section-sub">Posted announcements are visible to every teacher and parent at this school.</div>
+        <div class="card">
+          <form class="inline" id="announcementForm">
+            <input type="text" id="announceTitle" placeholder="Title" required>
+            <textarea id="announceText" rows="3" placeholder="Write the announcement..." required style="padding:11px 12px; border:1px solid var(--line); border-radius:6px; background:var(--paper); color:var(--ink);"></textarea>
+            <button type="submit">Post announcement</button>
+          </form>
+        </div>
+        <div id="announcementListAdmin"></div>
+      </div>
+    </div>
+
+    <!-- ---- TEACHER VIEW ---- -->
+    <div id="teacherView" class="hidden">
+      <div id="teacherAnnouncements"></div>
+      <div id="teacherNoClass" class="hidden">
+        <div class="section-title">No class found</div>
+        <div class="section-sub">No class is assigned to the name "<span id="teacherNameEcho"></span>" yet. Ask your admin to add your class, using this exact name, then come back.</div>
+      </div>
+      <div id="teacherClassArea" class="hidden">
+        <div class="section-title" id="teacherClassTitle"></div>
+        <div class="section-sub">Tap a student to view or update their report and messages.</div>
+        <div id="teacherStudentList"></div>
+      </div>
+    </div>
+
+    <!-- ---- PARENT VIEW ---- -->
+    <div id="parentView" class="hidden">
+      <div id="parentAnnouncements"></div>
+      <div id="parentNoChild" class="hidden">
+        <div class="section-title">No student found</div>
+        <div class="section-sub">No student is linked to the name "<span id="parentNameEcho"></span>" yet. Check the spelling, or ask the school to add you as the parent name on file.</div>
+      </div>
+      <div id="parentChildArea" class="hidden">
+        <div class="section-title">Your children</div>
+        <div class="section-sub">Select a child to view their report and messages.</div>
+        <div id="parentStudentList"></div>
+      </div>
+    </div>
+
+    <!-- ---- STUDENT DETAIL (shared by teacher & parent) ---- -->
+    <div id="studentDetail" class="hidden">
+      <button class="back-link" id="backBtn">&larr; Back</button>
+      <div class="student-head">
+        <h2 id="detailStudentName"></h2>
+        <div class="meta" id="detailStudentMeta"></div>
+      </div>
+      <div class="subtabs">
+        <button class="subtab active" data-detail="report">Report</button>
+        <button class="subtab" data-detail="messages">Messages</button>
+      </div>
+
+      <div id="detailReport"></div>
+      <div id="detailMessages" class="hidden">
+        <div class="msg-thread" id="msgThread"></div>
+        <div class="msg-input-row">
+          <input type="text" id="msgInput" placeholder="Write a message&hellip;">
+          <button id="msgSendBtn">Send</button>
+        </div>
+      </div>
+    </div>
+
+  </main>
+</div>
+
+<script>
+  // ---------------- State ----------------
+  const state = {
+    role: localStorage.getItem('cb_role') || null,
+    name: localStorage.getItem('cb_name') || '',
+    schoolCode: localStorage.getItem('cb_school') || null,
+    schoolName: localStorage.getItem('cb_school_name') || '',
+    focusStudentId: null,
+  };
+
+  function col(path){ return dbNamespace.collection('schools/' + state.schoolCode + '/' + path); }
+  function docRef(path){ return dbNamespace.doc('schools/' + state.schoolCode + '/' + path); }
+
+  let dbNamespace = null;
+  let classesCache = [];
+  let studentsCache = [];
+  let reportUnsub = null;
+  let messagesUnsub = null;
+
+  // ---------------- Role gate ----------------
+  const roleGate = document.getElementById('roleGate');
+  const appMain = document.getElementById('appMain');
+  const roleCards = document.querySelectorAll('.role-card');
+  const nameInput = document.getElementById('nameInput');
+  const nameField = document.getElementById('nameField');
+  const nameLabel = document.getElementById('nameLabel');
+  const continueBtn = document.getElementById('continueBtn');
+  let selectedRole = null;
+
+  roleCards.forEach(card=>{
+    card.addEventListener('click', ()=>{
+      roleCards.forEach(c=>c.classList.remove('selected'));
+      card.classList.add('selected');
+      selectedRole = card.dataset.role;
+      nameLabel.textContent = selectedRole === 'admin' ? 'Your name' :
+        selectedRole === 'teacher' ? 'Your name (as it will appear on your class)' :
+        'Your name (as the parent listed on your child\'s record)';
+      continueBtn.disabled = !nameInput.value.trim();
+      document.getElementById('requestFormArea').classList.add('hidden');
+      document.getElementById('pendingMsg').classList.add('hidden');
+      nameField.classList.remove('hidden');
+      continueBtn.classList.remove('hidden');
+    });
+  });
+  nameInput.addEventListener('input', ()=>{
+    continueBtn.disabled = !selectedRole || !nameInput.value.trim();
+  });
+  continueBtn.addEventListener('click', async ()=>{
+    const role = selectedRole;
+    const name = nameInput.value.trim();
+    if(role === 'admin'){
+      state.role = role; state.name = name;
+      localStorage.setItem('cb_role', state.role);
+      localStorage.setItem('cb_name', state.name);
+      enterApp();
+      return;
+    }
+    continueBtn.disabled = true; continueBtn.textContent = 'Checking...';
+    const approved = await checkApproval(role, name);
+    continueBtn.disabled = false; continueBtn.textContent = 'Continue';
+    if(approved){
+      state.role = role; state.name = name;
+      localStorage.setItem('cb_role', state.role);
+      localStorage.setItem('cb_name', state.name);
+      enterApp();
+    } else {
+      openRequestForm(role, name);
+    }
+  });
+  document.getElementById('switchRoleBtn').addEventListener('click', ()=>{
+    appMain.classList.add('hidden');
+    roleGate.classList.remove('hidden');
+    document.getElementById('requestFormArea').classList.add('hidden');
+    document.getElementById('pendingMsg').classList.add('hidden');
+    nameField.classList.remove('hidden');
+    continueBtn.classList.remove('hidden');
+  });
+
+  async function checkApproval(role, name){
+    if(!dbNamespace || !state.schoolCode) return false;
+    try{
+      if(role === 'teacher'){
+        const snap = await col('classes').where('teacherName','==',name).limit(1).get();
+        return !snap.empty;
+      } else {
+        const snap = await col('students').where('parentName','==',name).limit(1).get();
+        return !snap.empty;
+      }
+    }catch(e){ console.error('approval check failed', e); return false; }
+  }
+
+  function openRequestForm(role, name){
+    nameField.classList.add('hidden');
+    continueBtn.classList.add('hidden');
+    const area = document.getElementById('requestFormArea');
+    area.classList.remove('hidden');
+    document.getElementById('requestFormExplain').textContent =
+      role === 'teacher'
+        ? 'No class is set up for "' + name + '" yet. Send a request and the admin will assign you a class.'
+        : 'No student is linked to "' + name + '" yet. Send a request and the admin will link your child.';
+    document.getElementById('teacherRequestFields').classList.toggle('hidden', role !== 'teacher');
+    document.getElementById('parentRequestFields').classList.toggle('hidden', role !== 'parent');
+    document.getElementById('sendRequestBtn').onclick = () => submitRequest(role, name);
+  }
+
+  async function submitRequest(role, name){
+    const note = document.getElementById('requestSentNote');
+    const phone = document.getElementById('reqPhone').value.trim();
+    const payload = { type: role, name, phone, status: 'pending', ts: Date.now() };
+    if(role === 'teacher'){
+      payload.className = document.getElementById('reqClassName').value.trim();
+      if(!payload.className){ note.textContent = 'Enter the class you teach.'; return; }
+    } else {
+      payload.studentName = document.getElementById('reqStudentName').value.trim();
+      if(!payload.studentName){ note.textContent = "Enter your child's name."; return; }
+    }
+    note.textContent = 'Sending...';
+    try{
+      await col('requests').add(payload);
+      notifyAdminByEmail(role, name, payload);
+      document.getElementById('requestFormArea').classList.add('hidden');
+      document.getElementById('pendingMsg').classList.remove('hidden');
+    }catch(e){
+      note.textContent = 'Could not send — try again.';
+      console.error(e);
+    }
+  }
+
+  function notifyAdminByEmail(role, name, payload){
+    const detail = role === 'teacher'
+      ? name + ' wants to teach ' + payload.className
+      : name + ' wants access as parent of ' + payload.studentName;
+    const fd = new FormData();
+    fd.append('_subject', 'ClassBridge — new ' + role + ' request at ' + (state.schoolName || 'your school'));
+    fd.append('School', state.schoolName || '');
+    fd.append('School code', state.schoolCode || '');
+    fd.append('Role requested', role);
+    fd.append('Name', name);
+    fd.append('Phone', payload.phone || '');
+    fd.append('Detail', detail);
+    fetch('https://formsubmit.co/ajax/juwonprosper88@gmail.com', {
+      method: 'POST',
+      headers: {'Accept':'application/json'},
+      body: fd
+    }).catch(()=>{});
+  }
+
+  function tryAutoEnter(){
+    if(state.role && state.name){
+      roleCards.forEach(c=>{
+        if(c.dataset.role === state.role) c.classList.add('selected');
+      });
+      selectedRole = state.role;
+      nameInput.value = state.name;
+      continueBtn.disabled = false;
+      enterApp();
+    }
+  }
+
+  function enterApp(){
+    roleGate.classList.add('hidden');
+    appMain.classList.remove('hidden');
+    document.getElementById('whoName').textContent = state.name;
+    document.getElementById('whoRole').textContent = state.role.charAt(0).toUpperCase() + state.role.slice(1);
+    document.getElementById('adminView').classList.toggle('hidden', state.role !== 'admin');
+    document.getElementById('teacherView').classList.toggle('hidden', state.role !== 'teacher');
+    document.getElementById('parentView').classList.toggle('hidden', state.role !== 'parent');
+    document.getElementById('studentDetail').classList.add('hidden');
+    if(state.role === 'teacher') renderTeacherView();
+    if(state.role === 'parent') renderParentView();
+    if(state.role === 'admin'){ subscribeRequests(); subscribeAnnouncementsAdmin(); }
+    if(state.role === 'teacher' || state.role === 'parent') subscribeAnnouncementsViewer();
+  }
+
+  // ---------------- Announcements ----------------
+  document.getElementById('announcementForm').addEventListener('submit', async (e)=>{
+    e.preventDefault();
+    const title = document.getElementById('announceTitle').value.trim();
+    const text = document.getElementById('announceText').value.trim();
+    if(!title || !text || !dbNamespace) return;
+    await col('announcements').add({title, text, postedBy: state.name, ts: Date.now()});
+    e.target.reset();
+  });
+
+  function announcementCardHtml(a){
+    const d = new Date(a.ts);
+    const when = d.toLocaleDateString(undefined,{month:'short', day:'numeric'}) + ' · ' + d.toLocaleTimeString(undefined,{hour:'numeric', minute:'2-digit'});
+    return '<div class="card"><div style="font-weight:600;">'+esc(a.title)+'</div>' +
+      '<div style="margin:6px 0;">'+esc(a.text)+'</div>' +
+      '<div class="sub" style="color:var(--muted);">'+esc(a.postedBy||'Admin')+' &middot; '+when+'</div></div>';
+  }
+
+  function subscribeAnnouncementsAdmin(){
+    col('announcements').orderBy('ts','desc').limit(30).onSnapshot((snap)=>{
+      const list = document.getElementById('announcementListAdmin');
+      const items = snap.docs.map(d=>d.data());
+      list.innerHTML = items.length ? items.map(announcementCardHtml).join('') : '<div class="empty-state">No announcements posted yet.</div>';
+    }, (err)=>console.error('announcements admin sub', err));
+  }
+
+  function subscribeAnnouncementsViewer(){
+    const targetId = state.role === 'teacher' ? 'teacherAnnouncements' : 'parentAnnouncements';
+    col('announcements').orderBy('ts','desc').limit(10).onSnapshot((snap)=>{
+      const el = document.getElementById(targetId);
+      const items = snap.docs.map(d=>d.data());
+      if(!items.length){ el.innerHTML = ''; return; }
+      el.innerHTML = '<div class="section-title" style="font-size:1.1rem; margin-bottom:10px;">Announcements</div>' +
+        items.map(announcementCardHtml).join('') +
+        '<div style="height:10px;"></div>';
+    }, (err)=>console.error('announcements viewer sub', err));
+  }
+
+  // ---------------- Requests (sign-up approval) ----------------
+  function subscribeRequests(){
+    col('requests').where('status','==','pending').onSnapshot((snap)=>{
+      const items = snap.docs.map(d=>({id:d.id, ...d.data()}));
+      document.getElementById('requestBadge').textContent = items.length ? '('+items.length+')' : '';
+      renderRequestList(items);
+    }, (err)=>console.error('requests sub', err));
+  }
+
+  function renderRequestList(items){
+    const list = document.getElementById('requestList');
+    if(!items.length){ list.innerHTML = '<div class="empty-state">No pending requests.</div>'; return; }
+    list.innerHTML = items.map(r=>{
+      if(r.type === 'teacher'){
+        const options = classesCache.map(c=>'<option value="'+c.id+'"'+(normalize(c.name)===normalize(r.className)?' selected':'')+'>'+esc(c.name)+'</option>').join('');
+        return '<div class="card">' +
+          '<div class="main">'+esc(r.name)+' <span class="sub">&middot; wants to teach '+esc(r.className)+'</span></div>' +
+          (r.phone ? '<div class="sub">Phone: '+esc(r.phone)+'</div>' : '') +
+          '<div style="margin-top:10px; display:flex; gap:8px; align-items:center;">' +
+            '<select data-approve-teacher="'+r.id+'" data-name="'+esc(r.name)+'" style="flex:1; padding:9px; border:1px solid var(--line); border-radius:5px; background:var(--paper); color:var(--ink);">'+options+'</select>' +
+            '<button data-approve-teacher-btn="'+r.id+'">Approve</button>' +
+            '<button data-decline="'+r.id+'" style="background:transparent; color:var(--muted); border:1px solid var(--line);">Decline</button>' +
+          '</div></div>';
+      } else {
+        const options = classesCache.map(c=>'<option value="'+c.id+'">'+esc(c.name)+'</option>').join('');
+        return '<div class="card">' +
+          '<div class="main">'+esc(r.name)+' <span class="sub">&middot; parent of '+esc(r.studentName)+'</span></div>' +
+          (r.phone ? '<div class="sub">Phone: '+esc(r.phone)+'</div>' : '') +
+          '<div style="margin-top:10px; display:flex; gap:8px; align-items:center;">' +
+            '<select data-approve-class="'+r.id+'" style="flex:1; padding:9px; border:1px solid var(--line); border-radius:5px; background:var(--paper); color:var(--ink);">'+options+'</select>' +
+            '<button data-approve-parent-btn="'+r.id+'" data-name="'+esc(r.name)+'" data-student="'+esc(r.studentName)+'">Approve</button>' +
+            '<button data-decline="'+r.id+'" style="background:transparent; color:var(--muted); border:1px solid var(--line);">Decline</button>' +
+          '</div></div>';
+      }
+    }).join('');
+
+    list.querySelectorAll('button[data-approve-teacher-btn]').forEach(btn=>{
+      btn.addEventListener('click', async ()=>{
+        const reqId = btn.dataset.approveTeacherBtn;
+        const sel = list.querySelector('select[data-approve-teacher="'+reqId+'"]');
+        const classId = sel.value;
+        const teacherName = sel.dataset.name;
+        if(!classId) return;
+        await col('classes').doc(classId).update({teacherName});
+        await col('requests').doc(reqId).update({status:'approved'});
+      });
+    });
+    list.querySelectorAll('button[data-approve-parent-btn]').forEach(btn=>{
+      btn.addEventListener('click', async ()=>{
+        const reqId = btn.dataset.approveParentBtn;
+        const sel = list.querySelector('select[data-approve-class="'+reqId+'"]');
+        const classId = sel.value;
+        const cls = classesCache.find(c=>c.id===classId);
+        if(!classId || !cls) return;
+        await col('students').add({
+          name: btn.dataset.student, classId, className: cls.name, teacherName: cls.teacherName,
+          parentName: btn.dataset.name, createdAt: Date.now()
+        });
+        await col('requests').doc(reqId).update({status:'approved'});
+      });
+    });
+    list.querySelectorAll('button[data-decline]').forEach(btn=>{
+      btn.addEventListener('click', async ()=>{
+        await col('requests').doc(btn.dataset.decline).update({status:'declined'});
+      });
+    });
+  }
+
+
+  const firebaseConfig = {
+    apiKey: "AIzaSyBxnSdloRYyGxnrah-G2mp-8zLsFbgFFNs",
+    authDomain: "classbridge-f0c58.firebaseapp.com",
+    projectId: "classbridge-f0c58",
+    storageBucket: "classbridge-f0c58.firebasestorage.app",
+    messagingSenderId: "409747524699",
+    appId: "1:409747524699:web:3d8932b9c8974ed901037e"
+  };
+  (() => {
+    try{
+      firebase.initializeApp(firebaseConfig);
+      dbNamespace = firebase.firestore();
+    }catch(e){ dbNamespace = null; console.error('Firebase init failed', e); }
+    if(!dbNamespace){
+      document.getElementById('createSchoolNote').textContent = "Could not connect to the database. Check your connection and reload.";
+      return;
+    }
+    if(state.schoolCode){
+      enterSchool(state.schoolCode, state.schoolName, false);
+    }
+  })();
+
+  const DEFAULT_CLASSES = ['JSS1','JSS2','JSS3','SSS1','SSS2','SSS3'];
+  function generateSchoolCode(){
+    const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+    let code = '';
+    for(let i=0;i<6;i++) code += chars[Math.floor(Math.random()*chars.length)];
+    return code;
+  }
+
+  function enterSchool(code, name, isNew){
+    state.schoolCode = code;
+    state.schoolName = name;
+    localStorage.setItem('cb_school', code);
+    localStorage.setItem('cb_school_name', name);
+    document.getElementById('schoolGate').classList.add('hidden');
+    document.getElementById('roleGate').classList.remove('hidden');
+    document.getElementById('schoolInfoBox').innerHTML =
+      '<strong>' + esc(name) + '</strong> &middot; code: <span style="font-family:monospace;">' + esc(code) + '</span> &middot; <button id="switchSchoolBtn" style="background:none; border:none; color:var(--muted); text-decoration:underline; cursor:pointer; font-size:0.85rem; padding:0;">Switch school</button>';
+    document.getElementById('switchSchoolBtn').addEventListener('click', switchSchool);
+    subscribeClasses();
+    subscribeStudents();
+    tryAutoEnter();
+  }
+
+  function switchSchool(){
+    localStorage.removeItem('cb_school');
+    localStorage.removeItem('cb_school_name');
+    localStorage.removeItem('cb_role');
+    localStorage.removeItem('cb_name');
+    location.reload();
+  }
+
+  // ---- School gate wiring ----
+  document.getElementById('tabNewSchool').addEventListener('click', ()=>{
+    document.getElementById('tabNewSchool').classList.add('active');
+    document.getElementById('tabJoinSchool').classList.remove('active');
+    document.getElementById('newSchoolPane').classList.remove('hidden');
+    document.getElementById('joinSchoolPane').classList.add('hidden');
+  });
+  document.getElementById('tabJoinSchool').addEventListener('click', ()=>{
+    document.getElementById('tabJoinSchool').classList.add('active');
+    document.getElementById('tabNewSchool').classList.remove('active');
+    document.getElementById('joinSchoolPane').classList.remove('hidden');
+    document.getElementById('newSchoolPane').classList.add('hidden');
+  });
+
+  document.getElementById('createSchoolBtn').addEventListener('click', async ()=>{
+    const name = document.getElementById('newSchoolName').value.trim();
+    const note = document.getElementById('createSchoolNote');
+    if(!name){ note.textContent = 'Enter a school name.'; return; }
+    if(!dbNamespace){ note.textContent = 'Not connected yet — try again in a moment.'; return; }
+    note.textContent = 'Setting up your school...';
+    const code = generateSchoolCode();
+    try{
+      await dbNamespace.doc('schools/' + code).set({name, createdAt: Date.now()});
+      const batchAdds = DEFAULT_CLASSES.map(cn =>
+        dbNamespace.collection('schools/' + code + '/classes').add({name: cn, teacherName: '', createdAt: Date.now()})
+      );
+      await Promise.all(batchAdds);
+      enterSchool(code, name, true);
+    }catch(e){
+      note.textContent = 'Could not create the school — try again.';
+      console.error(e);
+    }
+  });
+
+  document.getElementById('joinSchoolBtn').addEventListener('click', async ()=>{
+    const code = document.getElementById('joinSchoolCode').value.trim().toUpperCase();
+    const note = document.getElementById('joinSchoolNote');
+    if(!code){ note.textContent = 'Enter a school code.'; return; }
+    if(!dbNamespace){ note.textContent = 'Not connected yet — try again in a moment.'; return; }
+    note.textContent = 'Checking code...';
+    try{
+      const doc = await dbNamespace.doc('schools/' + code).get();
+      if(!doc.exists){ note.textContent = 'No school found with that code.'; return; }
+      enterSchool(code, doc.data().name, false);
+    }catch(e){
+      note.textContent = 'Could not check that code — try again.';
+      console.error(e);
+    }
+  });
+
+  function subscribeClasses(){
+    col('classes').orderBy('name').onSnapshot((snap)=>{
+      classesCache = snap.docs.map(d=>({id:d.id, ...d.data()}));
+      renderClassList();
+      populateClassSelect();
+      if(state.role === 'teacher' && !appMain.classList.contains('hidden')) renderTeacherView();
+    }, (err)=>{ console.error('classes sub error', err); });
+  }
+  function subscribeStudents(){
+    col('students').orderBy('name').onSnapshot((snap)=>{
+      studentsCache = snap.docs.map(d=>({id:d.id, ...d.data()}));
+      renderStudentList();
+      if(state.role === 'teacher' && !appMain.classList.contains('hidden')) renderTeacherView();
+      if(state.role === 'parent' && !appMain.classList.contains('hidden')) renderParentView();
+    }, (err)=>{ console.error('students sub error', err); });
+  }
+
+  // ---------------- Admin: subtabs ----------------
+  document.querySelectorAll('#adminView .subtab').forEach(tab=>{
+    tab.addEventListener('click', ()=>{
+      document.querySelectorAll('#adminView .subtab').forEach(t=>t.classList.remove('active'));
+      tab.classList.add('active');
+      document.getElementById('adminClasses').classList.toggle('hidden', tab.dataset.sub !== 'classes');
+      document.getElementById('adminStudents').classList.toggle('hidden', tab.dataset.sub !== 'students');
+      document.getElementById('adminRequests').classList.toggle('hidden', tab.dataset.sub !== 'requests');
+      document.getElementById('adminAnnouncements').classList.toggle('hidden', tab.dataset.sub !== 'announcements');
+    });
+  });
+
+  function renderClassList(){
+    const list = document.getElementById('classList');
+    if(!classesCache.length){
+      list.innerHTML = '<div class="empty-state">No classes yet — add one below.</div>';
+      return;
+    }
+    list.innerHTML = classesCache.map(c=>{
+      const count = studentsCache.filter(s=>s.classId===c.id).length;
+      const teacherLabel = c.teacherName ? esc(c.teacherName) : '<span style="color:var(--muted); font-style:italic;">No teacher assigned</span>';
+      return '<div class="card list-row"><div><div class="main">'+esc(c.name)+'</div><div class="sub">Teacher: '+teacherLabel+' &middot; '+count+' student'+(count===1?'':'s')+'</div></div><button data-assign="'+c.id+'" data-current="'+esc(c.teacherName||'')+'">'+(c.teacherName?'Change':'Assign')+'</button></div>';
+    }).join('');
+    list.querySelectorAll('button[data-assign]').forEach(btn=>{
+      btn.addEventListener('click', async ()=>{
+        const newName = prompt("Teacher's name for this class:", btn.dataset.current || '');
+        if(newName === null) return;
+        await col('classes').doc(btn.dataset.assign).update({teacherName: newName.trim()});
+      });
+    });
+  }
+
+  function populateClassSelect(){
+    const sel = document.getElementById('studentClassInput');
+    const current = sel.value;
+    sel.innerHTML = '<option value="" disabled selected>Choose a class</option>' +
+      classesCache.map(c=>'<option value="'+c.id+'">'+esc(c.name)+'</option>').join('');
+    if(current) sel.value = current;
+  }
+
+  function renderStudentList(){
+    const list = document.getElementById('studentList');
+    if(!studentsCache.length){
+      list.innerHTML = '<div class="empty-state">No students yet — add one below.</div>';
+      return;
+    }
+    list.innerHTML = studentsCache.map(s=>
+      '<div class="card list-row"><div><div class="main">'+esc(s.name)+'</div><div class="sub">'+esc(s.className)+' &middot; Parent: '+esc(s.parentName)+'</div></div></div>'
+    ).join('');
+  }
+
+  document.getElementById('classForm').addEventListener('submit', async (e)=>{
+    e.preventDefault();
+    const name = document.getElementById('classNameInput').value.trim();
+    const teacherName = document.getElementById('classTeacherInput').value.trim();
+    if(!name || !teacherName || !dbNamespace) return;
+    await col('classes').add({name, teacherName, createdAt: Date.now()});
+    e.target.reset();
+  });
+
+  document.getElementById('studentForm').addEventListener('submit', async (e)=>{
+    e.preventDefault();
+    const name = document.getElementById('studentNameInput').value.trim();
+    const classId = document.getElementById('studentClassInput').value;
+    const parentName = document.getElementById('studentParentInput').value.trim();
+    if(!name || !classId || !parentName || !dbNamespace) return;
+    const cls = classesCache.find(c=>c.id===classId);
+    await col('students').add({
+      name, classId, className: cls ? cls.name : '', teacherName: cls ? cls.teacherName : '',
+      parentName, createdAt: Date.now()
+    });
+    e.target.reset();
+  });
+
+  // ---------------- Teacher view ----------------
+  function renderTeacherView(){
+    const myClasses = classesCache.filter(c => normalize(c.teacherName) === normalize(state.name));
+    document.getElementById('teacherNameEcho').textContent = state.name;
+    if(!myClasses.length){
+      document.getElementById('teacherNoClass').classList.remove('hidden');
+      document.getElementById('teacherClassArea').classList.add('hidden');
+      return;
+    }
+    document.getElementById('teacherNoClass').classList.add('hidden');
+    document.getElementById('teacherClassArea').classList.remove('hidden');
+    const cls = myClasses[0];
+    document.getElementById('teacherClassTitle').textContent = cls.name;
+    const myStudents = studentsCache.filter(s=>s.classId===cls.id);
+    const list = document.getElementById('teacherStudentList');
+    list.innerHTML = myStudents.length ? myStudents.map(s=>
+      '<div class="card list-row"><div><div class="main">'+esc(s.name)+'</div><div class="sub">Parent: '+esc(s.parentName)+'</div></div><button data-sid="'+s.id+'">Open</button></div>'
+    ).join('') : '<div class="empty-state">No students in this class yet — ask your admin to add some.</div>';
+    list.querySelectorAll('button[data-sid]').forEach(btn=>{
+      btn.addEventListener('click', ()=>openStudentDetail(btn.dataset.sid, true));
+    });
+  }
+
+  // ---------------- Parent view ----------------
+  function renderParentView(){
+    const myKids = studentsCache.filter(s => normalize(s.parentName) === normalize(state.name));
+    document.getElementById('parentNameEcho').textContent = state.name;
+    if(!myKids.length){
+      document.getElementById('parentNoChild').classList.remove('hidden');
+      document.getElementById('parentChildArea').classList.add('hidden');
+      return;
+    }
+    document.getElementById('parentNoChild').classList.add('hidden');
+    document.getElementById('parentChildArea').classList.remove('hidden');
+    const list = document.getElementById('parentStudentList');
+    list.innerHTML = myKids.map(s=>
+      '<div class="card list-row"><div><div class="main">'+esc(s.name)+'</div><div class="sub">'+esc(s.className)+' &middot; '+esc(s.teacherName)+'</div></div><button data-sid="'+s.id+'">Open</button></div>'
+    ).join('');
+    list.querySelectorAll('button[data-sid]').forEach(btn=>{
+      btn.addEventListener('click', ()=>openStudentDetail(btn.dataset.sid, false));
+    });
+  }
+
+  // ---------------- Student detail ----------------
+  function openStudentDetail(studentId, canEdit){
+    state.focusStudentId = studentId;
+    const student = studentsCache.find(s=>s.id===studentId);
+    if(!student) return;
+
+    document.getElementById('adminView').classList.add('hidden');
+    document.getElementById('teacherView').classList.add('hidden');
+    document.getElementById('parentView').classList.add('hidden');
+    document.getElementById('studentDetail').classList.remove('hidden');
+    document.getElementById('detailStudentName').textContent = student.name;
+    document.getElementById('detailStudentMeta').textContent = student.className + ' · ' + student.teacherName;
+
+    document.querySelectorAll('#studentDetail .subtab').forEach(t=>t.classList.remove('active'));
+    document.querySelector('#studentDetail .subtab[data-detail="report"]').classList.add('active');
+    document.getElementById('detailReport').classList.remove('hidden');
+    document.getElementById('detailMessages').classList.add('hidden');
+
+    renderReportArea(studentId, canEdit);
+    subscribeMessages(studentId);
+  }
+
+  document.getElementById('backBtn').addEventListener('click', ()=>{
+    if(reportUnsub){ reportUnsub(); reportUnsub = null; }
+    if(messagesUnsub){ messagesUnsub(); messagesUnsub = null; }
+    document.getElementById('studentDetail').classList.add('hidden');
+    if(state.role === 'admin') document.getElementById('adminView').classList.remove('hidden');
+    if(state.role === 'teacher'){ document.getElementById('teacherView').classList.remove('hidden'); renderTeacherView(); }
+    if(state.role === 'parent'){ document.getElementById('parentView').classList.remove('hidden'); renderParentView(); }
+  });
+
+  document.querySelectorAll('#studentDetail .subtab').forEach(tab=>{
+    tab.addEventListener('click', ()=>{
+      document.querySelectorAll('#studentDetail .subtab').forEach(t=>t.classList.remove('active'));
+      tab.classList.add('active');
+      document.getElementById('detailReport').classList.toggle('hidden', tab.dataset.detail !== 'report');
+      document.getElementById('detailMessages').classList.toggle('hidden', tab.dataset.detail !== 'messages');
+    });
+  });
+
+  // ---- Report (editable for teacher, read-only for parent) ----
+  function renderReportArea(studentId, canEdit){
+    const area = document.getElementById('detailReport');
+    if(reportUnsub){ reportUnsub(); reportUnsub = null; }
+
+    if(!dbNamespace){ area.innerHTML = '<div class="empty-state">Reports need the shared Claude link to load.</div>'; return; }
+
+    const ref = docRef('reports/' + studentId);
+    reportUnsub = ref.onSnapshot((snap)=>{
+      const data = snap.exists ? snap.data() : {subjects:[], present:0, absent:0, comment:''};
+      if(canEdit){
+        renderReportEditor(area, studentId, data);
+      }else{
+        renderReportReadOnly(area, data);
+      }
+    }, (err)=>{ console.error('report sub error', err); });
+  }
+
+  function renderReportReadOnly(area, data){
+    const subjectRows = (data.subjects||[]).map(s=>'<dt>'+esc(s.name)+'</dt><dd>'+esc(String(s.score))+'</dd>').join('');
+    area.innerHTML =
+      '<div class="report-view card">' +
+        '<div style="font-weight:600; margin-bottom:10px;">Subject scores</div>' +
+        (subjectRows ? '<dl>'+subjectRows+'</dl>' : '<div class="empty-state" style="padding:10px 0;">No scores added yet.</div>') +
+        '<div style="font-weight:600; margin:14px 0 6px;">Attendance</div>' +
+        '<div class="sub" style="color:var(--muted);">Present: '+(data.present||0)+' &middot; Absent: '+(data.absent||0)+'</div>' +
+        '<div style="font-weight:600; margin:14px 0 6px;">Teacher\'s comment</div>' +
+        '<div class="comment-box">'+ (data.comment ? esc(data.comment) : '<span style="color:var(--muted);">No comment yet.</span>') +'</div>' +
+      '</div>';
+  }
+
+  function renderReportEditor(area, studentId, data){
+    const subjects = (data.subjects && data.subjects.length) ? data.subjects : [{name:'', score:''}];
+    area.innerHTML =
+      '<div class="card">' +
+        '<div style="font-weight:600; margin-bottom:10px;">Subject scores</div>' +
+        '<div id="subjectRows"></div>' +
+        '<button type="button" class="add-subject-btn" id="addSubjectBtn">+ Add subject</button>' +
+        '<div class="attend-row">' +
+          '<div class="attend-field"><label>Days present</label><input type="number" min="0" id="presentInput" value="'+(data.present||0)+'"></div>' +
+          '<div class="attend-field"><label>Days absent</label><input type="number" min="0" id="absentInput" value="'+(data.absent||0)+'"></div>' +
+        '</div>' +
+        '<div style="font-weight:600; margin-bottom:6px;">Comment for parent</div>' +
+        '<textarea id="commentInput" rows="3" style="width:100%; padding:11px 12px; border:1px solid var(--line); border-radius:6px; background:var(--paper); color:var(--ink);">'+ (data.comment||'') +'</textarea>' +
+        '<button type="button" id="saveReportBtn" style="margin-top:12px; width:100%; padding:12px; border:none; border-radius:6px; background:var(--ink); color:var(--paper); font-weight:600; cursor:pointer;">Save report</button>' +
+        '<div class="save-note" id="saveNote"></div>' +
+      '</div>';
+
+    const rowsEl = document.getElementById('subjectRows');
+    let rows = subjects.map(s=>({name:s.name||'', score: s.score!==undefined ? s.score : ''}));
+
+    function drawRows(){
+      rowsEl.innerHTML = rows.map((r,i)=>
+        '<div class="subject-row">' +
+          '<input type="text" placeholder="Subject" data-i="'+i+'" data-f="name" value="'+esc(r.name)+'">' +
+          '<input type="number" placeholder="Score" data-i="'+i+'" data-f="score" value="'+esc(String(r.score))+'">' +
+          '<button type="button" data-remove="'+i+'">&times;</button>' +
+        '</div>'
+      ).join('');
+      rowsEl.querySelectorAll('input').forEach(inp=>{
+        inp.addEventListener('input', ()=>{
+          const i = parseInt(inp.dataset.i,10);
+          rows[i][inp.dataset.f] = inp.value;
+        });
+      });
+      rowsEl.querySelectorAll('button[data-remove]').forEach(btn=>{
+        btn.addEventListener('click', ()=>{
+          rows.splice(parseInt(btn.dataset.remove,10), 1);
+          if(!rows.length) rows.push({name:'', score:''});
+          drawRows();
+        });
+      });
+    }
+    drawRows();
+
+    document.getElementById('addSubjectBtn').addEventListener('click', ()=>{
+      rows.push({name:'', score:''});
+      drawRows();
+    });
+
+    document.getElementById('saveReportBtn').addEventListener('click', async ()=>{
+      const cleanSubjects = rows.filter(r=>r.name.trim()).map(r=>({name:r.name.trim(), score: Number(r.score)||0}));
+      const present = Number(document.getElementById('presentInput').value)||0;
+      const absent = Number(document.getElementById('absentInput').value)||0;
+      const comment = document.getElementById('commentInput').value;
+      const note = document.getElementById('saveNote');
+      try{
+        await docRef('reports/' + studentId).set({subjects: cleanSubjects, present, absent, comment, updatedAt: Date.now()});
+        note.textContent = 'Saved.';
+        setTimeout(()=>{ note.textContent=''; }, 2000);
+      }catch(e){
+        note.textContent = 'Could not save — try again.';
+      }
+    });
+  }
+
+  // ---- Messages ----
+  function subscribeMessages(studentId){
+    if(messagesUnsub){ messagesUnsub(); messagesUnsub = null; }
+    const thread = document.getElementById('msgThread');
+    if(!dbNamespace){ thread.innerHTML = '<div class="empty-state">Messages need the shared Claude link to load.</div>'; return; }
+    messagesUnsub = col('messages')
+      .where('studentId', '==', studentId)
+      .orderBy('ts')
+      .limit(200)
+      .onSnapshot((snap)=>{
+        const msgs = snap.docs.map(d=>d.data());
+        if(!msgs.length){
+          thread.innerHTML = '<div class="empty-state">No messages yet — say hello.</div>';
+        }else{
+          thread.innerHTML = msgs.map(m=>{
+            const mine = m.from === state.role;
+            return '<div class="msg '+(mine?'me':'them')+'">' +
+              '<div class="who-label">'+esc(m.fromName)+'</div>' +
+              esc(m.text) +
+            '</div>';
+          }).join('');
+          thread.scrollTop = thread.scrollHeight;
+        }
+      }, (err)=>{ console.error('messages sub error', err); });
+  }
+
+  document.getElementById('msgSendBtn').addEventListener('click', sendMessage);
+  document.getElementById('msgInput').addEventListener('keydown', (e)=>{
+    if(e.key === 'Enter') sendMessage();
+  });
+  async function sendMessage(){
+    const input = document.getElementById('msgInput');
+    const text = input.value.trim();
+    if(!text || !state.focusStudentId || !dbNamespace) return;
+    input.value = '';
+    await col('messages').add({
+      studentId: state.focusStudentId,
+      from: state.role,
+      fromName: state.name,
+      text,
+      ts: Date.now()
+    });
+  }
+
+  // ---------------- Utilities ----------------
+  function normalize(s){ return (s||'').trim().toLowerCase(); }
+  function esc(s){
+    return String(s).replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  }
+</script>
+</body>
+</html>
